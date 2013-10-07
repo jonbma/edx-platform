@@ -16,6 +16,7 @@ from django.contrib.auth import logout, authenticate, login
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import password_reset_confirm
+# from django.contrib.sessions.models import Session
 from django.core.cache import cache
 from django.core.context_processors import csrf
 from django.core.mail import send_mail
@@ -30,17 +31,20 @@ from django_future.csrf import ensure_csrf_cookie
 from django.utils.http import cookie_date, base36_to_int, urlencode
 from django.utils.translation import ugettext as _
 from django.views.decorators.http import require_POST
+from django.contrib.admin.views.decorators import staff_member_required
+from django.utils.translation import ugettext as _u
 
 from ratelimitbackend.exceptions import RateLimitException
 
 from mitxmako.shortcuts import render_to_response, render_to_string
 
 from course_modes.models import CourseMode
-from student.models import (Registration, UserProfile, TestCenterUser, TestCenterUserForm,
-                            TestCenterRegistration, TestCenterRegistrationForm,
-                            PendingNameChange, PendingEmailChange,
-                            CourseEnrollment, unique_id_for_user,
-                            get_testcenter_registration, CourseEnrollmentAllowed)
+from student.models import (
+    Registration, UserProfile, TestCenterUser, TestCenterUserForm,
+    TestCenterRegistration, TestCenterRegistrationForm, PendingNameChange,
+    PendingEmailChange, CourseEnrollment, unique_id_for_user,
+    get_testcenter_registration, CourseEnrollmentAllowed, UserStanding,
+)
 from student.forms import PasswordResetFormNoActive
 
 from certificates.models import CertificateStatuses, certificate_status_for_student
@@ -64,6 +68,8 @@ import track.views
 
 from dogapi import dog_stats_api
 from pytz import UTC
+
+from util.json_request import JsonResponse
 
 log = logging.getLogger("mitx.student")
 AUDIT_LOG = logging.getLogger("audit")
@@ -527,6 +533,32 @@ def login_user(request, error=""):
         return HttpResponse(json.dumps({'success': False,
                                         'value': _('Email or password is incorrect.')}))
 
+    if user is not None:
+        try:
+            user_account = UserStanding.objects.get(user=user)
+        except UserStanding.DoesNotExist:
+            pass
+        else:
+            if user_account.account_status == u'disabled':
+                return JsonResponse(
+                    {
+                        'success': False,
+                        'value': _(
+                            'Your account has been disabled. If you believe '
+                            'this was done in error, please contact us at '
+                            '{link_start}{support_email}{link_end}'
+                        ).format(
+                            support_email = settings.CONTACT_EMAIL,
+                            link_start = u'<a href="mailto:{address}?subject={subject_line}}">'.format(
+                                address=settings.CONTACT_EMAIL,
+                                subject_line=_('Disabled Account'),
+                            ),
+                            link_end = u'</a>'
+                        )
+                    }
+                )
+
+
     if user is not None and user.is_active:
         try:
             # We do not log here, because we have a handler registered
@@ -596,6 +628,89 @@ def logout_user(request):
                            path='/',
                            domain=settings.SESSION_COOKIE_DOMAIN)
     return response
+
+@login_required
+@ensure_csrf_cookie
+def disable_account(request):
+    if not request.user.is_staff:
+        raise Http404
+    disabled_account_table = all_disabled_accounts = UserStanding.objects.filter(
+        account_status=u'account_disabled'
+    )
+
+    ids = [account.user.id for account in all_disabled_accounts]
+
+    all_disabled_users = User.objects.filter(id__in=ids)
+    headers = ['username', 'account_changed_by']
+    rows = []
+    for user in all_disabled_users:
+        row = [user.username, user.standing.all()[0].changed_by]
+        rows.append(row)
+
+
+    context = {'headers': headers, 'rows': rows}
+
+    return render_to_response("disable_account.html", context)
+
+@require_POST
+@login_required
+@ensure_csrf_cookie
+def disable_account_ajax(request):
+    if not request.user.is_staff:
+        raise Http404
+    username = request.POST.get('username')
+    context = {}
+    if username is None or username.strip() == '':
+        context['message'] = _u('Please enter a username')
+        return JsonResponse(context)
+
+    account_action = request.POST.get('account_action')
+    if account_action is None:
+        context['message'] = _u('Please choose an option')
+        return JsonResponse(context)
+
+    username = username.strip()
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        context['message'] = _u("User with username {} does not exist").format(username)
+    else:
+        user_account, _ = UserStanding.objects.get_or_create(
+            user=user, defaults={'changed_by': request.user},
+        )
+        if account_action == 'disable':
+            user_account.account_status = u'account_disabled'
+            context['message'] = _u("Successfully disabled {}'s account").format(username)
+
+            # _remove_user_sessions(user)
+            # context['message'] += _u("Successfully deleted {}'s sessions").format(username)
+        elif account_action == 'reenable':
+            user_account.account_status = u'account_enabled'
+            context['message'] = _u("Successfully reenabled {}'s account").format(username)
+        user_account.changed_by = request.user
+        user_account.standing_last_changed_at = datetime.datetime.now(UTC)
+        user_account.save()
+
+    # add table_row of all accounts to context
+    context['row'] = [username, user_account.changed_by.username]
+
+    return JsonResponse(context)
+
+def _remove_user_sessions(user):
+    """
+    finds all of a user's sessions and deletes them from the database
+    """
+    # hackish and expensive, but as far as I can tell the only way
+    # immediately to lock out a user in django
+    all_sessions = Session.objects.filter(expire_date__gte=datetime.datetime.now(UTC))
+    user_sessions_pks = [
+        session.pk for session in all_sessions if session.get_decoded().get(
+            '_auth_user_id'
+        ) == user.id
+    ]
+    user_sessions_to_delete = Session.objects.filter(pk__in=user_sessions_pks)
+    user_sessions_to_delete.delete()
+
 
 
 @login_required
