@@ -248,7 +248,8 @@ def create_block_from_xml(xml_data, system, org=None, course=None, default_class
     location = Location('i4x', org, course, node.tag, url_name)
 
     scope_ids = ScopeIds(None, location.category, location, location)
-    xblock = xblock_class.parse_xml(node, system, scope_ids)
+    field_data = DictFieldData({'location': location})
+    xblock = xblock_class.parse_xml(node, system, scope_ids, field_data=field_data)
     return xblock
 
 
