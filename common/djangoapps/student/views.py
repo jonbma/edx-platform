@@ -549,7 +549,7 @@ def login_user(request, error=""):
                             '{link_start}{support_email}{link_end}'
                         ).format(
                             support_email = settings.CONTACT_EMAIL,
-                            link_start = u'<a href="mailto:{address}?subject={subject_line}}">'.format(
+                            link_start = u'<a href="mailto:{address}?subject={subject_line}">'.format(
                                 address=settings.CONTACT_EMAIL,
                                 subject_line=_('Disabled Account'),
                             ),
