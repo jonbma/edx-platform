@@ -210,6 +210,7 @@ class ImportSystem(XMLParsingSystem, MakoDescriptorSystem):
         # policy to be loaded.  For now, just add the course_id here...
         load_item = lambda location: xmlstore.get_instance(course_id, location)
         resources_fs = OSFS(xmlstore.data_dir / course_dir)
+
         super(ImportSystem, self).__init__(
             load_item=load_item,
             resources_fs=resources_fs,
@@ -248,8 +249,7 @@ def create_block_from_xml(xml_data, system, org=None, course=None, default_class
     location = Location('i4x', org, course, node.tag, url_name)
 
     scope_ids = ScopeIds(None, location.category, location, location)
-    field_data = DictFieldData({'location': location})
-    xblock = xblock_class.parse_xml(node, system, scope_ids, field_data=field_data)
+    xblock = xblock_class.parse_xml(node, system, scope_ids)
     return xblock
 
 
