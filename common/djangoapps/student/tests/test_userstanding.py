@@ -1,3 +1,7 @@
+"""
+These are tests for disabling and enabling student accounts, and for making sure
+that students with disabled accounts are unable to access the courseware.
+"""
 from student.tests.factories import UserFactory, UserStandingFactory
 from student.models import UserStanding
 from django.test import TestCase, Client
@@ -43,18 +47,21 @@ class UserStandingTest(TestCase):
 
         self.bad_user_account = UserStandingFactory.create(
             user=self.bad_user,
-            account_status=u'account_disabled',
+            account_status=UserStanding.ACCOUNT_DISABLED,
             changed_by=self.admin
         )
 
     def test_disable_account(self):
+        self.assertEqual(
+            UserStanding.objects.filter(user=self.good_user).count(), 0
+        )
         response = self.admin_client.post(reverse('disable_account_ajax'), {
             'username': self.good_user.username,
             'account_action': 'disable',
         })
         self.assertEqual(
             UserStanding.objects.get(user=self.good_user).account_status,
-            u'account_disabled'
+            UserStanding.ACCOUNT_DISABLED
         )
 
     def test_disabled_account_403s(self):
@@ -68,16 +75,16 @@ class UserStandingTest(TestCase):
         })
         self.assertEqual(
             UserStanding.objects.get(user=self.bad_user).account_status,
-            u'account_enabled'
+            UserStanding.ACCOUNT_ENABLED
         )
 
-    def non_staff_cant_access_disable_view(self):
+    def test_non_staff_cant_access_disable_view(self):
         response = self.non_staff_client.get(reverse('disable_account'), {
             'user': self.non_staff,
         })
         self.assertEqual(response.status_code, 404)
 
-    def non_staff_cant_disable_account(self):
+    def test_non_staff_cant_disable_account(self):
         response = self.non_staff_client.post(reverse('disable_account'), {
             'username': self.good_user.username,
             'user': self.non_staff,

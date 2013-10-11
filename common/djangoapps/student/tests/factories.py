@@ -1,6 +1,6 @@
 from student.models import (User, UserProfile, Registration,
                             CourseEnrollmentAllowed, CourseEnrollment,
-                            PendingEmailChange, UserStanding
+                            PendingEmailChange, UserStanding,
                             )
 from django.contrib.auth.models import Group
 from datetime import datetime
@@ -21,7 +21,7 @@ class UserStandingFactory(DjangoModelFactory):
     FACTORY_FOR = UserStanding
 
     user = None
-    account_status = u'account_enabled'
+    account_status = None
     changed_by = None
 
 
