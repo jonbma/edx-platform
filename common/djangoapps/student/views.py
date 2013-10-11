@@ -608,13 +608,12 @@ def logout_user(request):
 def disable_account(request):
     if not request.user.is_staff:
         raise Http404
-    disabled_account_table = all_disabled_accounts = UserStanding.objects.filter(
+    all_disabled_accounts = UserStanding.objects.filter(
         account_status=u'account_disabled'
     )
 
-    ids = [account.user.id for account in all_disabled_accounts]
+    all_disabled_users = [standing.user for standing in all_disabled_accounts]
 
-    all_disabled_users = User.objects.filter(id__in=ids)
     headers = ['username', 'account_changed_by']
     rows = []
     for user in all_disabled_users:
@@ -655,36 +654,16 @@ def disable_account_ajax(request):
         if account_action == 'disable':
             user_account.account_status = u'account_disabled'
             context['message'] = _u("Successfully disabled {}'s account").format(username)
-
-            # _remove_user_sessions(user)
-            # context['message'] += _u("Successfully deleted {}'s sessions").format(username)
         elif account_action == 'reenable':
             user_account.account_status = u'account_enabled'
             context['message'] = _u("Successfully reenabled {}'s account").format(username)
+        else:
+            HttpResponseBadRequest(_u("Unexpected account status"))
         user_account.changed_by = request.user
         user_account.standing_last_changed_at = datetime.datetime.now(UTC)
         user_account.save()
 
-    # add table_row of all accounts to context
-    context['row'] = [username, user_account.changed_by.username]
-
-    return JsonResponse(context)
-
-def _remove_user_sessions(user):
-    """
-    finds all of a user's sessions and deletes them from the database
-    """
-    # hackish and expensive, but as far as I can tell the only way
-    # immediately to lock out a user in django
-    all_sessions = Session.objects.filter(expire_date__gte=datetime.datetime.now(UTC))
-    user_sessions_pks = [
-        session.pk for session in all_sessions if session.get_decoded().get(
-            '_auth_user_id'
-        ) == user.id
-    ]
-    user_sessions_to_delete = Session.objects.filter(pk__in=user_sessions_pks)
-    user_sessions_to_delete.delete()
-
+    return JsonResponse(context, status=200)
 
 
 @login_required
