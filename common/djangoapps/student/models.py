@@ -40,8 +40,8 @@ class UserStanding(models.Model):
     taking away more specific privileges, like forums access, or adding
     more specific karma levels or probationary stages.
     """
-    ACCOUNT_DISABLED = "AD"
-    ACCOUNT_ENABLED = "AE"
+    ACCOUNT_DISABLED = "disabled"
+    ACCOUNT_ENABLED = "enabled"
     USER_STANDING_CHOICES = (
         (ACCOUNT_DISABLED, "account_disabled"),
         (ACCOUNT_ENABLED, "account_enabled"),
@@ -49,10 +49,10 @@ class UserStanding(models.Model):
 
     user = models.ForeignKey(User, db_index=True, related_name='standing', unique=True)
     account_status = models.CharField(
-        blank=True, max_length=31, default='account_enabled', choices=USER_STANDING_CHOICES
+        blank=True, max_length=31, choices=USER_STANDING_CHOICES
     )
     changed_by = models.ForeignKey(User, blank=True)
-    standing_last_changed_at = models.DateTimeField(default=datetime.now(UTC))
+    standing_last_changed_at = models.DateTimeField(auto_now=True)
 
 
 class UserProfile(models.Model):
