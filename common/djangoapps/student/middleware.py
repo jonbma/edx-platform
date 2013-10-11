@@ -1,24 +1,28 @@
+"""
+Middleware that checks user standing for the purpose of keeping users with
+disabled accounts from accessing the site.
+"""
 from django.http import HttpResponseForbidden
 from django.utils.translation import ugettext as _
 from django.conf import settings
 from student.models import UserStanding
 
 class UserStandingMiddleware(object):
-	"""
-	Checks a user's standing on request. Deletes their session if the user's
-	status is 'disabled'.
-	"""
-	def process_request(self, request):
-		user = request.user
-		try:
-			user_account = UserStanding.objects.get(user=user.id)
-			# because user is a unique field in UserStanding, there will either be
-			# one or zero user_accounts associated with a UserStanding
-		except UserStanding.DoesNotExist:
-			pass
-		else:
-			if user_account.account_status == u'account_disabled':
-				msg = _(
+    """
+    Checks a user's standing on request. Deletes their session if the user's
+    status is 'disabled'.
+    """
+    def process_request(self, request):
+        user = request.user
+        try:
+            user_account = UserStanding.objects.get(user=user.id)
+            # because user is a unique field in UserStanding, there will either be
+            # one or zero user_accounts associated with a UserStanding
+        except UserStanding.DoesNotExist:
+            pass
+        else:
+            if user_account.account_status == u'account_disabled':
+                msg = _(
                             'Your account has been disabled. If you believe '
                             'this was done in error, please contact us at '
                             '{link_start}{support_email}{link_end}'
@@ -30,4 +34,4 @@ class UserStandingMiddleware(object):
                             ),
                             link_end = u'</a>'
                         )
-				return HttpResponseForbidden(msg)
+                return HttpResponseForbidden(msg)
