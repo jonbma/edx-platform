@@ -533,32 +533,6 @@ def login_user(request, error=""):
         return HttpResponse(json.dumps({'success': False,
                                         'value': _('Email or password is incorrect.')}))
 
-    if user is not None:
-        try:
-            user_account = UserStanding.objects.get(user=user)
-        except UserStanding.DoesNotExist:
-            pass
-        else:
-            if user_account.account_status == u'disabled':
-                return JsonResponse(
-                    {
-                        'success': False,
-                        'value': _(
-                            'Your account has been disabled. If you believe '
-                            'this was done in error, please contact us at '
-                            '{link_start}{support_email}{link_end}'
-                        ).format(
-                            support_email = settings.CONTACT_EMAIL,
-                            link_start = u'<a href="mailto:{address}?subject={subject_line}">'.format(
-                                address=settings.CONTACT_EMAIL,
-                                subject_line=_('Disabled Account'),
-                            ),
-                            link_end = u'</a>'
-                        )
-                    }
-                )
-
-
     if user is not None and user.is_active:
         try:
             # We do not log here, because we have a handler registered
